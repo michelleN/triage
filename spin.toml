@@ -1,0 +1,37 @@
+spin_manifest_version = "1"
+authors = ["Michelle Dhanani <michelle@fermyon.com>"]
+description = "app that selects people for triage rotation"
+name = "triage-rotation"
+trigger = { type = "http", base = "/" }
+version = "0.1.0"
+
+[[component]]
+id = "pick-2"
+source = "pick-2/target/wasm32-wasi/release/triage_generator.wasm"
+allowed_http_hosts = []
+[component.trigger]
+route = "/pair"
+[component.build]
+command = "cargo build --target wasm32-wasi --release"
+workdir = "pick-2"
+
+[[component]]
+id = "schedule-month"
+source = "schedule-month/target/wasm32-wasi/release/schedule_month.wasm"
+allowed_http_hosts = []
+key_value_stores = ["default"]
+[component.trigger]
+route = "/schedule/..."
+[component.build]
+command = "cargo build --target wasm32-wasi --release"
+workdir = "schedule-month"
+
+[[component]]
+id = "rotation"
+source = "rotation/target/wasm32-wasi/release/rotation.wasm"
+allowed_http_hosts = []
+[component.trigger]
+route = "/..."
+[component.build]
+command = "cargo build --target wasm32-wasi --release"
+workdir = "rotation"
