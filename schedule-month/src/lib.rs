@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{Datelike, Month, NaiveDate, Weekday};
 use rand::{seq::SliceRandom, thread_rng};
 use spin_sdk::{
+    config,
     http::{Params, Request, Response},
     http_component, http_router,
     key_value::{Error, Store},
@@ -228,12 +229,14 @@ fn store_schedule(month: &str, schedule: HashMap<u32, String>, store: &Store) ->
 }
 
 fn new_pair() -> String {
-    let triage_list = [
-        "Person A", "Person B", "Person C", "Person D", "Person E", "Person F", "Person G",
-        "Person H", "Person I", "Person J", "Person K", "Person L", "Person M", "Person N",
-    ];
+    const MAINTAINERS_CONFIG_VARIABLE: &str = "maintainers";
+
+    let maintainers =
+        config::get(MAINTAINERS_CONFIG_VARIABLE).expect("unable to parse maintainers config");
+    let maintainers_list: Vec<&str> = maintainers.split(',').map(|s| s.trim()).collect();
+
     let mut rng = thread_rng();
-    let chosen = triage_list.choose_multiple(&mut rng, 2);
+    let chosen = maintainers_list.choose_multiple(&mut rng, 2);
 
     let rotation: Vec<String> = chosen.into_iter().map(|c| c.to_string()).collect();
     rotation.join(" and ")

@@ -5,6 +5,11 @@ name = "triage-rotation"
 trigger = { type = "http", base = "/" }
 version = "0.1.0"
 
+
+[variables]
+# maintainers is a comma-separated list of GitHub usernames
+maintainers = { required = true }
+
 [[component]]
 id = "pick-2"
 source = "pick-2/target/wasm32-wasi/release/triage_generator.wasm"
@@ -14,6 +19,9 @@ route = "/pair"
 [component.build]
 command = "cargo build --target wasm32-wasi --release"
 workdir = "pick-2"
+[component.config]
+maintainers = "{{ maintainers }}"
+
 
 [[component]]
 id = "schedule-month"
@@ -25,6 +33,8 @@ route = "/schedule/..."
 [component.build]
 command = "cargo build --target wasm32-wasi --release"
 workdir = "schedule-month"
+[component.config]
+maintainers = "{{ maintainers }}"
 
 [[component]]
 id = "rotation"
@@ -35,3 +45,5 @@ route = "/..."
 [component.build]
 command = "cargo build --target wasm32-wasi --release"
 workdir = "rotation"
+[component.config]
+maintainers = "{{ maintainers }}"

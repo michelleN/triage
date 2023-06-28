@@ -1,20 +1,21 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rand::{seq::SliceRandom, thread_rng};
 use spin_sdk::{
+    config,
     http::{Request, Response},
     http_component,
 };
 
 /// A simple Spin HTTP component.
 #[http_component]
-fn handle_triage_generator(_req: Request) -> Result<Response> {
-    let triage_list = [
-        "Person A", "Person B", "Person C", "Person D", "Person E", "Person F", "Person G",
-        "Person H", "Person I", "Person J", "Person K", "Person L", "Person M", "Person N",
-    ];
+fn handle_triage_pair(_req: Request) -> Result<Response> {
+    const MAINTAINERS_CONFIG_VARIABLE: &str = "maintainers";
+
+    let maintainers = config::get(MAINTAINERS_CONFIG_VARIABLE)?;
+    let maintainers_list: Vec<&str> = maintainers.split(',').map(|s| s.trim()).collect();
 
     let mut rng = thread_rng();
-    let chosen = triage_list.choose_multiple(&mut rng, 2);
+    let chosen = maintainers_list.choose_multiple(&mut rng, 2);
 
     let rotation: Vec<String> = chosen.into_iter().map(|c| c.to_string()).collect();
 
