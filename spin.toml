@@ -36,14 +36,10 @@ workdir = "schedule-month"
 [component.config]
 maintainers = "{{ maintainers }}"
 
+
 [[component]]
-id = "rotation"
-source = "rotation/target/wasm32-wasi/release/rotation.wasm"
-allowed_http_hosts = []
+source = { url = "https://github.com/fermyon/spin-fileserver/releases/download/v0.0.1/spin_static_fs.wasm", digest = "sha256:650376c33a0756b1a52cad7ca670f1126391b79050df0321407da9c741d32375" }
+id = "schedule-view"
+files = [ { source = "schedule-view/dist", destination = "/" } ]
 [component.trigger]
 route = "/..."
-[component.build]
-command = "cargo build --target wasm32-wasi --release"
-workdir = "rotation"
-[component.config]
-maintainers = "{{ maintainers }}"
