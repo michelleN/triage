@@ -10,10 +10,12 @@
   },
   "dependencies": {
     "sass": "^1.63.6",
+    "sass-loader": "^13.3.2",
     "vue": "^3.3.4",
     "vuex": "^4.0.2"
   },
   "devDependencies": {
+    "@fermyon/styleguide": "^0.1.6",
     "@vitejs/plugin-vue": "^4.2.3",
     "vite": "^4.4.0"
   }
