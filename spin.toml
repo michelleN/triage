@@ -9,6 +9,8 @@ version = "0.1.0"
 [variables]
 # maintainers is a comma-separated list of GitHub usernames
 maintainers = { required = true }
+id = { required = true }
+secret = { required = true }
 
 [[component]]
 id = "pick-2"
@@ -22,6 +24,19 @@ workdir = "pick-2"
 [component.config]
 maintainers = "{{ maintainers }}"
 
+[[component]]
+id = "github-oauth"
+source = "github-oauth/target/wasm32-wasi/release/github_oauth.wasm"
+allowed_http_hosts = ["https://github.com", "https://api.github.com"]
+[component.trigger]
+route = "/api/sessions/oauth/github/..."
+[component.build]
+command = "cargo build --target wasm32-wasi --release"
+workdir = "github-oauth"
+[component.config]
+maintainers = "{{ maintainers }}"
+id = "{{ id }}"
+secret = "{{ secret }}"
 
 [[component]]
 id = "schedule-month"
@@ -43,3 +58,6 @@ id = "schedule-view"
 files = [ { source = "schedule-view/dist", destination = "/" } ]
 [component.trigger]
 route = "/..."
+[component.build]
+command = "npm run build"
+workdir = "schedule-view"
