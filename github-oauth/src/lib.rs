@@ -28,6 +28,8 @@ fn http_error(status: http::StatusCode, message: &str) -> Result<Response> {
 //TODO: send cookie with token to client
 //TODO: validate that token belongs to maintainer. errors to handle: token being valid and user not being on the list
 mod api {
+    use http::{header::SET_COOKIE, HeaderName, HeaderValue};
+
     use super::*;
 
     pub fn handle_github_auth(req: Request, _params: Params) -> anyhow::Result<Response> {
@@ -71,11 +73,13 @@ mod api {
             }
         };
 
-        // TODO: compare username to allowed usernames and return the right response code
+        let cookie_value = format!("oauth_token={}; Secure; SameSite=Lax", token);
+
         Ok(http::Response::builder()
             .status(200)
             .header("Content-Type", "text/plain")
             .header("token", token.clone())
+            .header(http::header::SET_COOKIE, &cookie_value)
             .body(Some(format!("Hello {}!", username).into()))?)
     }
 }
