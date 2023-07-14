@@ -6,9 +6,15 @@ use spin_sdk::{
 };
 use url::Url;
 
+const MAINTAINERS_CONFIG_VARIABLE: &str = "maintainers";
 const GITHUB_CLIENT_ID_VARIABLE: &str = "id";
 const GITHUB_CLIENT_SECRET_VARIABLE: &str = "secret";
-// TODO: http handler should import an instance of the "auth interface"
+
+// TODO: needs some major refactoring:
+// - get rid of router, don't need it for one route
+// - general cleanup
+// - long term: should be a component that handles github oauth.
+//   http handler should import an instance of the "auth interface"
 
 /// A Spin HTTP component that handles github oauth
 #[http_component]
@@ -24,15 +30,15 @@ fn http_error(status: http::StatusCode, message: &str) -> Result<Response> {
         .body(Some(message.to_owned().into()))?)
 }
 
-//TODO: clean up / reorganize
-//TODO: send cookie with token to client
-//TODO: validate that token belongs to maintainer. errors to handle: token being valid and user not being on the list
 mod api {
-    use http::{header::SET_COOKIE, HeaderName, HeaderValue};
 
     use super::*;
 
     pub fn handle_github_auth(req: Request, _params: Params) -> anyhow::Result<Response> {
+        let maintainers =
+            config::get(MAINTAINERS_CONFIG_VARIABLE).expect("unable to parse maintainers config");
+        let maintainers_list: Vec<&str> = maintainers.split(',').map(|s| s.trim()).collect();
+
         let code_str = match req
             .headers()
             .get("spin-full-url")
@@ -55,10 +61,10 @@ mod api {
 
         let token = match exchange_code_for_token(&code_str, &redirect) {
             Ok(t) => t,
-            Err(_) => {
+            Err(e) => {
                 return http_error(
-                    http::StatusCode::INTERNAL_SERVER_ERROR,
-                    "Could not exchange code for token",
+                    http::StatusCode::UNAUTHORIZED,
+                    format!("Could not exchange code for token {}", e).as_ref(),
                 );
             }
         };
@@ -73,8 +79,11 @@ mod api {
             }
         };
 
-        let cookie_value = format!("oauth_token={}; Secure; SameSite=Lax", token);
+        if maintainers_list.iter().find(|&&m| m == username).is_none() {
+            return http_error(http::StatusCode::FORBIDDEN, "User not in maintainers list");
+        }
 
+        let cookie_value = format!("oauth_token={}; Secure; SameSite=Lax", token);
         Ok(http::Response::builder()
             .status(200)
             .header("Content-Type", "text/plain")
