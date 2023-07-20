@@ -16,7 +16,7 @@ export default{
     methods: {
         
         async fetchData() { 
-            let res = await fetch('https://https://localhost:3000/schedule/july')
+            let res = await fetch('http://localhost:3000/schedule/july')
             return await res.json()
         },
     },
