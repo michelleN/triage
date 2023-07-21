@@ -1,4 +1,4 @@
 .spin/
-schedule-view/dist/
+calendar/dist/
 node_modules/
 */target/
