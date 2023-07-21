@@ -1,4 +1,4 @@
 .spin/
 calendar/dist/
-node_modules/
+calendar/node_modules/
 */target/
