@@ -83,12 +83,15 @@ mod api {
             return http_error(http::StatusCode::FORBIDDEN, "User not in maintainers list");
         }
 
-        let cookie_value = format!("oauth_token={}; Secure; SameSite=Lax", token);
+        let cookie_value = format!("oauth_token={}; Secure; HttpOnly", token);
+        let login_cookie = "login=success; Secure;";
+
         Ok(http::Response::builder()
-            .status(200)
-            .header("Content-Type", "text/plain")
-            .header("token", token.clone())
+            .status(302)
+            .header(http::header::CONTENT_TYPE, "text/plain")
+            .header(http::header::LOCATION, "http://localhost:3000") // TODO use spin headers
             .header(http::header::SET_COOKIE, &cookie_value)
+            .header(http::header::SET_COOKIE, login_cookie)
             .body(Some(format!("Hello {}!", username).into()))?)
     }
 }
