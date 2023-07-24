@@ -18,7 +18,7 @@ const from = '/';
       <!-- GitHub OAuth -->
       <a :href="getGitHubUrl(from)" class="auth-btn github-auth">
         <img :src="GitHubLogo" alt="GitHub Logo" />
-        <span>Google</span>
+        <span>GitHub</span>
       </a>
     </div>
   </div>
