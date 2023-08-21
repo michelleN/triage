@@ -11,7 +11,6 @@ const MAINTAINERS_CONFIG_VARIABLE: &str = "maintainers";
 const GITHUB_CLIENT_ID_VARIABLE: &str = "id";
 const GITHUB_CLIENT_SECRET_VARIABLE: &str = "secret";
 
-// TODO: needs some major refactoring:
 // - long term: should be a component that handles github oauth.
 //   http handler should import an instance of the "auth interface"
 
