@@ -1,8 +1,8 @@
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use cookie::Cookie;
 use spin_sdk::{
     config,
-    http::{Params, Request, Response, Router},
+    http::{Request, Response},
     http_component,
 };
 use url::Url;
@@ -12,24 +12,13 @@ const GITHUB_CLIENT_ID_VARIABLE: &str = "id";
 const GITHUB_CLIENT_SECRET_VARIABLE: &str = "secret";
 
 // TODO: needs some major refactoring:
-// - get rid of router, don't need it for one route
-// - general cleanup
 // - long term: should be a component that handles github oauth.
 //   http handler should import an instance of the "auth interface"
 
 /// A Spin HTTP component that handles github oauth
 #[http_component]
-fn handle_route(req: Request) -> Result<Response> {
-    let mut router = Router::new();
-    router.get("/api/sessions/oauth/github", api::handle_github_auth);
-    router.handle(req)
-}
-
-mod api {
-    use super::*;
-
-    pub fn handle_github_auth(req: Request, _params: Params) -> anyhow::Result<Response> {
-        let Some(url) = req
+fn handle_github_auth(req: Request) -> Result<Response> {
+    let Some(url) = req
             .headers()
             .get("spin-full-url") 
             .and_then(|url| url.to_str().ok())
@@ -37,71 +26,79 @@ mod api {
                 return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
             };
 
-        let Some(code_param) = get_query_param(url.clone(), "code") else {
-            return http_error(http::StatusCode::BAD_REQUEST, None);
+    let Some(code_param) = get_query_param(url.clone(), "code") else {
+            return http_error(http::StatusCode::BAD_REQUEST, Some("error getting code param"));
         };
 
-        let Some(state_param) = get_query_param(url, "state") else {
-            return http_error(http::StatusCode::BAD_REQUEST, None);
+    let Some(state_param) = get_query_param(url, "state") else {
+            return http_error(http::StatusCode::BAD_REQUEST, Some("error getting state param"));
         };
 
-        let Some(host) = req.headers().get("host").and_then(|h| h.to_str().ok()) else {
-            return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
+    let Some(host) = req.headers().get("host").and_then(|h| h.to_str().ok()) else {
+            return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, Some("error getting host"))
         };
 
-        let Some(stored_state) = get_state_from_cookie(&req.headers()) else {
-                return http_error(http::StatusCode::UNAUTHORIZED, None);
+    let Some(stored_state) = get_state_from_cookie(&req.headers()) else {
+                return http_error(http::StatusCode::UNAUTHORIZED, Some("error getting state from cookie"));
         };
 
-        if state_param != stored_state {
-            return http_error(http::StatusCode::UNAUTHORIZED, None);
-        }
-
-        let mut redirect = format!("https://{}/api/sessions/oauth/github", host);
-        if host.contains("localhost") || host.contains("127.0.0.1") {
-            redirect = format!("http://{}/api/sessions/oauth/github", host);
-        }
-
-        let token = match exchange_code_for_token(&code_param, &redirect) {
-            Ok(t) => t,
-            Err(e) => {
-                return http_error(http::StatusCode::UNAUTHORIZED, None);
-            }
-        };
-
-        let username = match get_username(&token) {
-            Ok(username) => username,
-            Err(e) => {
-                return Ok(http::Response::builder()
-                    .status(http::StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(Some(format!("Error getting username: {:?}", e).into()))
-                    .unwrap());
-            }
-        };
-
-        let Ok(maintainers) =  maintainers() else {
-                return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
-        };
-
-        if maintainers
-            .iter()
-            .find(|&m| m.to_owned() == username)
-            .is_none()
-        {
-            return http_error(http::StatusCode::FORBIDDEN, None);
-        }
-
-        let cookie_value = format!("oauth_token={}; Secure; HttpOnly", token);
-        let login_cookie = "login=success; Secure;";
-
-        Ok(http::Response::builder()
-            .status(302)
-            .header(http::header::CONTENT_TYPE, "text/plain")
-            .header(http::header::LOCATION, "http://localhost:3000") // TODO use spin headers
-            .header(http::header::SET_COOKIE, &cookie_value)
-            .header(http::header::SET_COOKIE, login_cookie)
-            .body(Some(format!("Hello {}!", username).into()))?)
+    if state_param != stored_state {
+        return http_error(
+            http::StatusCode::UNAUTHORIZED,
+            Some("state param does not match stored state"),
+        );
     }
+
+    let mut redirect = format!("https://{}/api/sessions/oauth/github", host);
+    if host.contains("localhost") || host.contains("127.0.0.1") {
+        redirect = format!("http://{}/api/sessions/oauth/github", host);
+    }
+
+    let token = match exchange_code_for_token(&code_param, &redirect) {
+        Ok(t) => t,
+        Err(_) => {
+            return http_error(
+                http::StatusCode::UNAUTHORIZED,
+                Some("error exchanging code for token"),
+            );
+        }
+    };
+
+    let username = match get_username(&token) {
+        Ok(username) => username,
+        Err(e) => {
+            return Ok(http::Response::builder()
+                .status(http::StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Some(format!("Error getting username: {:?}", e).into()))
+                .unwrap());
+        }
+    };
+
+    let Ok(maintainers) =  maintainers() else {
+                return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, Some("error getting maintainers"));
+        };
+
+    if maintainers
+        .iter()
+        .find(|&m| m.to_owned() == username)
+        .is_none()
+    {
+        return http_error(
+            http::StatusCode::FORBIDDEN,
+            Some("user is not a maintainer"),
+        );
+    }
+
+    let cookie_value = format!("oauth_token={}; Secure; HttpOnly", token);
+    let login_cookie = "login=success; Secure;";
+
+    Ok(http::Response::builder()
+        .status(302)
+        .header(http::header::CONTENT_TYPE, "text/plain")
+        .header(http::header::LOCATION, "http://localhost:3000") // TODO use spin headers
+        .header(http::header::SET_COOKIE, &cookie_value)
+        .header(http::header::SET_COOKIE, login_cookie)
+        .body(Some(format!("Hello {}!", username).into()))?)
 }
 
 fn get_username(token: &str) -> Result<String> {
