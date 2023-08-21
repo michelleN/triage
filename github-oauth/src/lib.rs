@@ -1,4 +1,5 @@
 use anyhow::{anyhow, bail, Result};
+use cookie::Cookie;
 use spin_sdk::{
     config,
     http::{Params, Request, Response, Router},
@@ -24,48 +25,47 @@ fn handle_route(req: Request) -> Result<Response> {
     router.handle(req)
 }
 
-fn http_error(status: http::StatusCode, message: &str) -> Result<Response> {
-    Ok(http::Response::builder()
-        .status(status)
-        .body(Some(message.to_owned().into()))?)
-}
-
 mod api {
-
     use super::*;
 
     pub fn handle_github_auth(req: Request, _params: Params) -> anyhow::Result<Response> {
-        let maintainers =
-            config::get(MAINTAINERS_CONFIG_VARIABLE).expect("unable to parse maintainers config");
-        let maintainers_list: Vec<&str> = maintainers.split(',').map(|s| s.trim()).collect();
-
-        let code_str = match req
+        let Some(url) = req
             .headers()
-            .get("spin-full-url")
+            .get("spin-full-url") 
             .and_then(|url| url.to_str().ok())
-            .and_then(|u| Url::parse(u).ok())
-            .and_then(|u| get_query_param(u, "code"))
-        {
-            Some(code) => code,
-            None => return http_error(http::StatusCode::BAD_REQUEST, "Could not parse code"),
+            .and_then(|url| Url::parse(url).ok()) else {
+                return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
+            };
+
+        let Some(code_param) = get_query_param(url.clone(), "code") else {
+            return http_error(http::StatusCode::BAD_REQUEST, None);
+        };
+
+        let Some(state_param) = get_query_param(url, "state") else {
+            return http_error(http::StatusCode::BAD_REQUEST, None);
         };
 
         let Some(host) = req.headers().get("host").and_then(|h| h.to_str().ok()) else {
-            return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, "Could not parse host header")
+            return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
         };
+
+        let Some(stored_state) = get_state_from_cookie(&req.headers()) else {
+                return http_error(http::StatusCode::UNAUTHORIZED, None);
+        };
+
+        if state_param != stored_state {
+            return http_error(http::StatusCode::UNAUTHORIZED, None);
+        }
 
         let mut redirect = format!("https://{}/api/sessions/oauth/github", host);
         if host.contains("localhost") || host.contains("127.0.0.1") {
             redirect = format!("http://{}/api/sessions/oauth/github", host);
         }
 
-        let token = match exchange_code_for_token(&code_str, &redirect) {
+        let token = match exchange_code_for_token(&code_param, &redirect) {
             Ok(t) => t,
             Err(e) => {
-                return http_error(
-                    http::StatusCode::UNAUTHORIZED,
-                    format!("Could not exchange code for token {}", e).as_ref(),
-                );
+                return http_error(http::StatusCode::UNAUTHORIZED, None);
             }
         };
 
@@ -79,8 +79,16 @@ mod api {
             }
         };
 
-        if maintainers_list.iter().find(|&&m| m == username).is_none() {
-            return http_error(http::StatusCode::FORBIDDEN, "User not in maintainers list");
+        let Ok(maintainers) =  maintainers() else {
+                return http_error(http::StatusCode::INTERNAL_SERVER_ERROR, None)
+        };
+
+        if maintainers
+            .iter()
+            .find(|&m| m.to_owned() == username)
+            .is_none()
+        {
+            return http_error(http::StatusCode::FORBIDDEN, None);
         }
 
         let cookie_value = format!("oauth_token={}; Secure; HttpOnly", token);
@@ -186,4 +194,42 @@ fn exchange_code_for_token(code: &str, redirect_url: &str) -> Result<String> {
 
         Ok(access_token)
     }
+}
+
+fn get_state_from_cookie(headers: &http::HeaderMap<http::HeaderValue>) -> Option<String> {
+    let Some(cookie_header) = headers
+        .get(http::header::COOKIE)
+        .and_then(|h| h.to_str().ok()) else {
+            return None;
+        };
+
+    for c in Cookie::split_parse(cookie_header) {
+        match c {
+            Ok(c) => {
+                if c.name() == "state" {
+                    return Some(c.value().to_owned());
+                }
+            }
+            _ => {
+                continue;
+            }
+        }
+    }
+
+    return None;
+}
+
+fn http_error(status: http::StatusCode, message: Option<&str>) -> Result<Response> {
+    let message = message.unwrap_or("error");
+    Ok(http::Response::builder()
+        .status(status)
+        .body(Some(message.to_owned().into()))?)
+}
+
+fn maintainers() -> Result<Vec<String>> {
+    let maintainers = config::get(MAINTAINERS_CONFIG_VARIABLE)?;
+    Ok(maintainers
+        .split(',')
+        .map(|s| s.trim().to_owned())
+        .collect())
 }

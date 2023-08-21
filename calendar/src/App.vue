@@ -1,11 +1,17 @@
 <script setup>
 import Calendar from './components/Calendar.vue'
 import GitHubLogo from '../public/favicon.png';
-import { getGitHubUrl } from './utils/getGitHubUrl';
+import { getGitHubUrl } from './utils/getGitHubUrl'
 
-const from = '/';
 
+function generateRandomState() {
+  const state = Math.random().toString(36).substring(7);
+  return state;
+}
+
+const from = generateRandomState();
 </script>
+
 
 <template>
   <div>

@@ -1,4 +1,7 @@
+import Cookies from "js-cookie";
+
 export function getGitHubUrl(from) {
+
     const rootURl = 'https://github.com/login/oauth/authorize';
   
     const options = {
@@ -10,6 +13,8 @@ export function getGitHubUrl(from) {
     };
   
     const qs = new URLSearchParams(options);
+
+    Cookies.set("state", from, { expires: 1 });
   
     return `${rootURl}?${qs.toString()}`;
   }
