@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use cookie::Cookie;
 use spin_sdk::{
     config,
